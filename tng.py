@@ -17,14 +17,14 @@ class UidMap(object):
         self.pop_bits = np.uint32(np.ceil(np.log2(initial_population_size)))
         self.time_bits = np.uint32(np.ceil(np.log2(number_of_timesteps)))
         self.child_bits = np.uint32(np.ceil(np.log2(max_children)))
-        self.year_bits = np.uint32(np.ceil(np.log2(year_size)))
-        self.day_bits = self.time_bits - self.year_bits
+        self.day_bits = np.uint32(np.ceil(np.log2(year_size)))
+        self.year_bits = self.time_bits - self.day_bits
 
         self.ssn_offset = self.child_bits + self.time_bits
         self.child_offset = self.time_bits
         self.child_mask = np.uint64((1 << self.child_bits) - 1)
         self.time_mask = np.uint64((1 << self.time_bits) - 1)
-        self.day_mask = np.uint64((1 << self.year_bits) - 1)
+        self.day_mask = np.uint64((1 << self.day_bits) - 1)
 
         num_years = np.uint32(1 << self.year_bits)
         self.mapping = [ None for _ in range(num_years) ]
@@ -45,7 +45,7 @@ class UidMap(object):
         ssn = uid >> self.ssn_offset    # left most bits
         child = (uid >> self.child_offset) & self.child_mask    # after ssn bits
         time = uid & self.time_mask # right most bits
-        year = time >> self.year_bits   # year is time modulo year_size
+        year = time >> self.day_bits    # year is time modulo year_size
         day = time & self.day_mask  # day is time remainder year_size
 
         return (ssn, child, day, year)
@@ -132,20 +132,36 @@ def main():
 
     """Main function for tng.py."""
 
-    mapping = UidMap(10000, 365*20)
+    population_size = 10_000
+    simulation_duration = 365*20
+
+    mapping = UidMap(population_size, simulation_duration)
     print(mapping)
 
     for i in range(32):
         mapping.add_individual(mapping.make_uid(i, 0, 0), i)
 
+    # for uid in mapping.uids():
+    #     index = mapping.get_index(uid)
+    #     print(uid, index)
+    #     if index % 2 == 0:
+    #         ssn, _child, _day, _year = mapping.parse_uid(uid)
+    #         t = np.random.randint(365*20)
+    #         mapping.add_individual(mapping.make_uid(ssn, t, 1), index)
+
+    print("Adding children...")
+    for i in range(8):
+        ssn = np.random.randint(population_size)
+        time = np.random.randint(simulation_duration)
+        child = np.random.randint(8)
+        print(f"Adding child {i+32} with ssn={ssn}, time={time}, child={child}")
+        uid = mapping.make_uid(ssn, time, child)
+        mapping.add_individual(uid, i+32)
+
     for uid in mapping.uids():
         index = mapping.get_index(uid)
         print(uid, index)
-        if index % 2 == 0:
-            ssn, _child, _day, _year = mapping.parse_uid(uid)
-            t = np.random.randint(365*20)
-            mapping.add_individual(mapping.make_uid(ssn, t, 1), index)
-    
+
     return
 
 
